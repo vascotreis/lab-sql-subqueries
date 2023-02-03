@@ -1,27 +1,33 @@
 -- How many copies of the film Hunchback Impossible exist in the inventory system?-- 
 
-SELECT title, COUNT(inventory_id)
-FROM film f
-INNER JOIN inventory i 
-ON f.film_id = i.film_id
-WHERE title = "Hunchback Impossible";
+SELECT title, COUNT(inventory_id) as inventory_count
+FROM film
+INNER JOIN inventory
+ON film.film_id = inventory.film_id
+WHERE title = "Hunchback Impossible"
+GROUP BY title;
 
 -- List all films whose length is longer than the average of all the films.
 
-SELECT title FROM film
+SELECT title
+FROM film
 WHERE length > (
-SELECT AVG(length) FROM film);
+SELECT AVG(length)
+FROM film
+);
 
 
 -- Use subqueries to display all actors who appear in the film Alone Trip.
 
-SELECT last_name, first_name
+SELECT first_name, last_name
 FROM actor
-WHERE actor_id in
-	(SELECT actor_id FROM film_actor
-	WHERE film_id in 
-		(SELECT film_id FROM film
-		WHERE title = "Alone Trip"));
+WHERE actor_id IN
+(SELECT actor_id
+FROM film_actor
+WHERE film_id =
+(SELECT film_id
+FROM film
+WHERE title = 'Alone Trip'));
 
 -- Sales have been lagging among young families, and you wish to target all family movies for a promotion. Identify all movies categorized as family films.
 
@@ -33,13 +39,10 @@ WHERE category = 'Family';
 
 SELECT first_name, last_name, email
 FROM customer
-WHERE address_id IN(
-	SELECT address_id from address
-	WHERE city_id IN (
-		SELECT city_id from city 
-		WHERE country_id IN(
-			SELECT country_id FROM country
-			WHERE country = 'Canada')));
+JOIN address ON address.address_id = customer.address_id
+JOIN city ON city.city_id = address.city_id
+JOIN country ON country.country_id = city.country_id
+WHERE country.country = 'Canada';
 
 -- USING JOIN
 
@@ -65,46 +68,34 @@ limit 1);
 
 
 -- Films rented by most profitable customer. You can use the customer table and payment table to find the most profitable customer ie the customer that has made the largest sum of payments
+SELECT film.film_id as "Film ID",
+film.title as "Film Title",
+COUNT(DISTINCT inventory.inventory_id) as "Copies",
+SUM(payment.amount) as "Total Sales",
+SUM(payment.amount) - SUM(film.replacement_cost) as "Net Profit"
+FROM payment
+JOIN rental ON payment.rental_id = rental.rental_id
+JOIN inventory ON rental.inventory_id = inventory.inventory_id
+JOIN film ON inventory.film_id = film.film_id
+GROUP BY film.film_id, film.title, film.replacement_cost
+ORDER BY SUM(payment.amount) - SUM(film.replacement_cost) DESC;
 
-SELECT
-	film.film_id as "Film ID",
-    film.title as "Film Title",
-    COUNT(
-        DISTINCT inventory.inventory_id
-    ) as "Copies",
-    SUM(payment.amount) as "Total Sales",
-    film.replacement_cost * COUNT(
-        DISTINCT inventory.inventory_id
-    ) as "Replacement Value",
-    SUM(payment.amount) - film.replacement_cost * COUNT(
-        DISTINCT inventory.inventory_id
-    ) as "Net Profit"
-FROM
-    payment
-LEFT JOIN rental ON payment.rental_id = rental.rental_id
-LEFT JOIN inventory ON rental.inventory_id = inventory.inventory_id
-LEFT JOIN film ON inventory.film_id = film.film_id
-GROUP BY
-    film.film_id
-ORDER BY
-    SUM(payment.amount) - film.replacement_cost * COUNT(
-        DISTINCT inventory.inventory_id
-    )
-DESC;
 
 
 -- Customers who spent more than the average payments.
 SELECT first_name, last_name
 FROM customer
-WHERE customer_id IN(
-SELECT customer_id
+JOIN (
+SELECT customer_id, SUM(amount) AS total
 FROM payment
 GROUP BY customer_id
-HAVING sum(amount) > (
-SELECT (total)
-FROM
-(SELECT sum(amount) AS total
-from payment
-GROUP BY customer_id)sub1));
-
+HAVING total > (
+SELECT AVG(total)
+FROM (
+SELECT SUM(amount) AS total
+FROM payment
+GROUP BY customer_id
+) sub
+)
+) sub ON customer.customer_id = sub.customer_id;
 
